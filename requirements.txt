@@ -1,0 +1,7 @@
+pylint
+bandit
+transformers
+accelerate
+bitsandbytes
+torch
+gradio
