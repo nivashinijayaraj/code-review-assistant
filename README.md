@@ -4,19 +4,32 @@ This tool reviews Python code and reports bugs, security vulnerabilities, style 
 
 ## How it works
 
-1. **Static analysis:** pylint and bandit check the code for bugs, style issues and security problems.
-2. **AI review:** Qwen2.5-Coder-7B-Instruct (running locally on a Colab GPU) reviews the numbered code and returns issues in JSON.
-3. **Verification:** each AI answer must quote the exact code it refers to. If that code is not on that line (or one line above/below), the answer is rejected as a hallucination. Wrong line numbers are corrected.
-4. **Merging:** issues on the same line and category are combined, and each issue shows which tools found it (e.g. `pylint, llm`).
+1. **Preprocessing:** the code is normalised (line endings, tabs) and parsed with Python's built-in `ast` module. Syntax errors are reported clearly and the review continues, so incomplete code is handled gracefully.
+2. **Static analysis:** pylint checks bugs and style (PEP 8), and bandit checks security. Their results are converted into one common format: line, category, message, tool.
+3. **AI review:** Qwen2.5-Coder-7B-Instruct receives the line-numbered code **and the static tool findings as JSON context**, and focuses on issues the tools missed, such as logic errors and edge cases. It returns issues in JSON with an explanation and a suggested fix.
+4. **Verification:** each AI answer must quote the exact code it refers to. If that code is not on the reported line (or one line above/below), the answer is rejected as a hallucination. Wrong line numbers are corrected, and invalid categories are fixed.
+5. **Merging:** issues on the same line and category are combined, and each issue shows which tools found it (e.g. `pylint, bandit, llm`).
+
+```
+code → preprocess (ast) → pylint + bandit → AI review (with tool results) → verifier → merge → review
+```
+
+## Why these tools and this model
+
+- **pylint + bandit:** open-source, give JSON output, and together cover bugs, style and security. They follow fixed rules (known patterns), so they are fast and precise but cannot understand logic. Alternatives such as flake8 and ruff focus mainly on style and common errors.
+- **Qwen2.5-Coder-7B-Instruct:** open-source (Apache-2.0), trained on code, follows instructions like "reply in JSON", and fits on a free Colab T4 GPU with 4-bit quantization. The smaller 1.5B model was tested first but missed logic bugs.
+- Closed models like ChatGPT were not used, because the code would be sent to an external service.
 
 ## Project files
 
 | File | Purpose |
 |---|---|
 | `analyzer.py` | runs pylint and bandit and returns issues in one common format |
-| `code_review_assistant.ipynb` | Colab notebook: AI model, verification, web interface and evaluation |
+| `code_review_assistant.ipynb` | Colab notebook: preprocessing, AI review, verification, web interface, batch mode and evaluation |
 | `test.py` | small sample file with known problems |
 | `requirements.txt` | list of required libraries |
+| `REPORT.md` | design decisions, model selection, evaluation and limitations |
+| `.gitignore` | excludes temporary and output files |
 
 ## Setup
 
@@ -29,24 +42,37 @@ python analyzer.py
 **Full version with AI (Google Colab):**
 1. Open `code_review_assistant.ipynb` in Google Colab.
 2. Select **Runtime → Change runtime type → T4 GPU**.
-3. Upload `analyzer.py` using the Files panel.
+3. Upload `analyzer.py` using the Files panel on the left.
 4. Click **Runtime → Run all** (the first model download takes about 5–10 minutes).
 
 ## Usage
 
-Run the Gradio cell in the notebook and open the link it prints. Paste Python code into the box and click **Submit**. The review shows the line, category, which tools found it, the problem and a suggested fix.
+**Interactive mode (web page):** run the Gradio cell and open the link it prints. Paste Python code and click **Submit**. The review shows the line, category, which tools found it, the problem and a suggested fix.
+
+**Batch mode (CI/CD):** `review_folder("folder_name")` reviews every `.py` file in a folder, saves `review_report.md`, and prints a CI status (FAIL if security issues are found). This shows how the tool can run in a CI/CD pipeline.
+
+**Python function:** `review(code)` returns a list of issues for any code string.
 
 ## Results
 
-Tested on 12 labelled code snippets (10 known issues and 2 clean snippets).
+Tested on 12 labelled code snippets: 10 known issues (3 bugs including 2 logic bugs, 3 security, 3 style, 1 optimization) and 2 clean snippets. A prediction is correct if the category matches and the line is within ±1.
 
 | Mode | Precision | Recall | F1 | Time (s) |
 |---|---|---|---|---|
-| static (pylint + bandit) | 0.89 | 0.80 | 0.84 | 29.8 |
-| llm (AI only) | 0.73 | 0.80 | 0.76 | 78.3 |
-| hybrid | 0.71 | 1.00 | 0.83 | 85.7 |
+| static (pylint + bandit) | 0.89 | 0.80 | 0.84 | 17.9 |
+| llm (AI only) | 0.73 | 0.80 | 0.76 | 74.4 |
+| hybrid | 0.77 | 1.00 | 0.87 | 92.4 |
 
-Static tools alone were the most precise and fastest, but missed 2 of the 10 issues, both logic bugs such as division by zero on an empty list. The hybrid mode found all 10 issues (100% recall). The trade-off was lower precision (0.71), mainly because the AI sometimes labelled the same issue with a different category, and because AI review takes several seconds per file.
+**Per category:**
+
+| Category | Static precision | Static recall | Hybrid precision | Hybrid recall |
+|---|---|---|---|---|
+| bug | 1.00 | 0.33 | 0.75 | 1.00 |
+| security | 0.75 | 1.00 | 0.75 | 1.00 |
+| style (vs PEP 8) | 1.00 | 1.00 | 0.75 | 1.00 |
+| optimization | 1.00 | 1.00 | 1.00 | 1.00 |
+
+Static tools alone were the most precise and fastest, but found only 1 of 3 bugs (bug recall 0.33), missing logic bugs such as division by zero on an empty list. The hybrid mode found all 10 issues (recall 1.00) and had the best F1 score (0.87). Giving the static results to the AI as context improved hybrid precision from 0.71 to 0.77. The remaining 3 false positives were a bandit caution about importing `subprocess`, the AI labelling `eval` as a bug instead of security, and one weak style comment on clean code. Static analysis takes about 1.5 s per file; the hybrid takes about 7.7 s per file on a T4 GPU.
 
 ## Dependencies
 
@@ -59,7 +85,7 @@ All tools and models are open-source:
 - gradio (Apache-2.0)
 - Qwen2.5-Coder-7B-Instruct model (Apache-2.0)
 
-The model runs inside the Colab session, so code is not sent to any external AI service.
+The model runs inside the Colab session, so code is not sent to any external AI service. (The Gradio `share=True` demo link passes through Gradio's servers; for private code, run the interface without `share`.)
 
 ## Limitations and future work
 
@@ -67,4 +93,9 @@ The model runs inside the Colab session, so code is not sent to any external AI 
 - **Missed boundary case:** the AI did not flag `age > 18`, because whether it is a bug depends on a business rule not stated in the code.
 - **Category disagreements:** the AI sometimes labels a security or style issue as a bug (e.g. `eval`), which counts as an extra finding.
 - **Weak style comments:** on clean code, the AI occasionally suggests unnecessary style changes. A future improvement is to accept AI style comments only when a static tool agrees.
-- **Python only:** support for other languages could be added with tools like ESLint for JavaScript.
+- **Long files:** the AI answer is limited to 500 new tokens, so very long files may get incomplete AI reviews. Future work: split long files into chunks by function.
+- **Python only:** the design is extensible. A new language needs its own analyzer function (e.g. ESLint for JavaScript) returning the same issue format, while the AI, verifier and merger stay the same.
+
+## AI assistance
+
+I used Claude (an AI assistant) while building this project for learning, explanations and debugging. I tested every step myself, ran all evaluations in Colab, and can explain each part of the code and the design choices.
