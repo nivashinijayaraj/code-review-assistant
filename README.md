@@ -4,11 +4,38 @@ This tool reviews Python code and reports bugs, security vulnerabilities, style 
 
 ## How it works
 
-1. **Preprocessing:** the code is normalised (line endings, tabs) and parsed with Python's built-in `ast` module. Syntax errors are reported clearly and the review continues, so incomplete code is handled gracefully.
-2. **Static analysis:** pylint checks bugs and style (PEP 8), and bandit checks security. Their results are converted into one common format: line, category, message, tool.
-3. **AI review:** Qwen2.5-Coder-7B-Instruct receives the line-numbered code **and the static tool findings as JSON context**, and focuses on issues the tools missed, such as logic errors and edge cases. It returns issues in JSON with an explanation and a suggested fix.
-4. **Verification:** each AI answer must quote the exact code it refers to. If that code is not on the reported line (or one line above/below), the answer is rejected as a hallucination. Wrong line numbers are corrected, and invalid categories are fixed.
-5. **Merging:** issues on the same line and category are combined, and each issue shows which tools found it (e.g. `pylint, bandit, llm`).
+## How it works
+
+The review runs in four steps.
+
+### 1. Preprocessing
+- The code is parsed with Python's built-in **Abstract Syntax Tree (`ast`) module**, which reads code the way Python does, without running it.
+- The code is cleaned first: tabs are converted to spaces and line endings are normalised.
+- If the code is broken (for example, a missing colon), the syntax error is reported and the review **continues**, so incomplete code does not stop the tool.
+
+### 2. Static analysis
+Two open-source tools are used:
+- **Pylint:** checks bugs and style, e.g. a list used as a default value, or an import that is never used.
+- **Bandit:** checks security, e.g. `eval`, `shell=True`, or passwords written in the code.
+
+**Why these tools:** alternatives such as flake8 or ruff exist, but pylint and bandit together cover all four categories (bug, security, style, optimization), are free, and produce JSON output that is easy to process in Python.
+
+These tools follow **fixed rules**: they detect known patterns in how code is written. They are fast and accurate, but they do not understand what the code is supposed to do.
+
+### 3. AI review
+- Model: **Qwen2.5-Coder-7B-Instruct**
+- **Why this model:** it is open-source, trained specifically on code, follows instructions such as "reply in JSON", and fits on a free Colab GPU using 4-bit quantization. Closed models such as ChatGPT were not used, because they are not open-source and the code would be sent to an external service. The smaller 1.5B model was tested first but missed logic bugs, so the 7B model was chosen.
+- The AI also receives the **static tool results as context**, so it focuses on **logic mistakes** the tools cannot detect. For example, `sum(numbers) / len(numbers)` looks correct, but crashes when the list is empty.
+
+### 4. Verification and merging
+The AI can make mistakes. During testing, it invented a problem that was not in the code, gave a wrong line number, and used the wrong category. To handle this:
+- The AI must **quote the exact code** it refers to. If that code is not found in the file, the answer is **removed** as a hallucination.
+- If the line number is off by one, it is **corrected**.
+- When several tools report the same problem, the findings are **merged** into one, and the review shows which tools found it (e.g. `pylint, bandit, llm`).
+
+```
+code → preprocess (ast) → pylint + bandit → AI review (with tool results) → verifier → merge → review
+```
 
 ```
 code → preprocess (ast) → pylint + bandit → AI review (with tool results) → verifier → merge → review
