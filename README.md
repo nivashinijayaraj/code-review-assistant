@@ -108,3 +108,7 @@ The model runs inside the Colab session, so code is not sent to any external AI 
 - Prompt Engineering Guide (few-shot prompting): https://www.promptingguide.ai/
 
 
+## Colab File 
+- Link : https://colab.research.google.com/drive/1LU3r0NPJ4q0GLkc1wuh2wRu-lcVpsxAr?usp=sharing 
+
+
