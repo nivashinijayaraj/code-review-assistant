@@ -96,4 +96,15 @@ The model runs inside the Colab session, so code is not sent to any external AI 
 - **Long files:** the AI answer is limited to 500 new tokens, so very long files may get incomplete AI reviews. Future work: split long files into chunks by function.
 - **Python only:** the design is extensible. A new language needs its own analyzer function (e.g. ESLint for JavaScript) returning the same issue format, while the AI, verifier and merger stay the same.
 
+## References
+
+- Python (ast, subprocess, json): https://docs.python.org/3/library/
+- Pylint documentation: https://pylint.readthedocs.io/
+- Bandit documentation: https://bandit.readthedocs.io/
+- PEP 8 style guide: https://peps.python.org/pep-0008/
+- Qwen2.5-Coder-7B-Instruct model: https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct
+- Hugging Face Transformers (pipeline, 4-bit quantization): https://huggingface.co/docs/transformers/
+- Gradio documentation: https://www.gradio.app/docs
+- Prompt Engineering Guide (few-shot prompting): https://www.promptingguide.ai/
+
 
