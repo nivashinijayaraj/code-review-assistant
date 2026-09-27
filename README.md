@@ -96,6 +96,4 @@ The model runs inside the Colab session, so code is not sent to any external AI 
 - **Long files:** the AI answer is limited to 500 new tokens, so very long files may get incomplete AI reviews. Future work: split long files into chunks by function.
 - **Python only:** the design is extensible. A new language needs its own analyzer function (e.g. ESLint for JavaScript) returning the same issue format, while the AI, verifier and merger stay the same.
 
-## AI assistance
 
-I used Claude (an AI assistant) while building this project for learning, explanations and debugging. I tested every step myself, ran all evaluations in Colab, and can explain each part of the code and the design choices.
