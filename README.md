@@ -2,7 +2,6 @@
 
 This tool reviews Python code and reports bugs, security vulnerabilities, style issues and optimization opportunities. It combines rule-based static analysis (pylint and bandit) with an open-source code model (Qwen2.5-Coder-7B-Instruct), and verifies the AI's answers against the actual code to reduce false positives.
 
-## How it works
 
 ## How it works
 
