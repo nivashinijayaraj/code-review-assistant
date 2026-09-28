@@ -36,9 +36,7 @@ The AI can make mistakes. During testing, it invented a problem that was not in 
 code → preprocess (ast) → pylint + bandit → AI review (with tool results) → verifier → merge → review
 ```
 
-```
-code → preprocess (ast) → pylint + bandit → AI review (with tool results) → verifier → merge → review
-```
+
 
 ## Why these tools and this model
 
